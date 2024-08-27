@@ -1,6 +1,11 @@
-# DocApi is a library that facilitates API documentation for the GO language. 
+# DocApi
 
+<p align="justify"> DocApi is a library that facilitates API documentation 📑 for the GO language </p>
 
+### Install
+ - go get github.com/trs-source/docapi
+
+### Example:
 ```
 type Model struct {
 	ID   int64      `json:"id"`
