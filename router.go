@@ -1,8 +1,9 @@
 package docapi
 
 import (
-	"docapi/openapi"
 	"net/http"
+
+	"github.com/trs-source/docapi/openapi"
 )
 
 type Router struct {

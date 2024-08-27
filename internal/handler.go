@@ -1,10 +1,11 @@
 package internal
 
 import (
-	"docapi/openapi"
 	"encoding/json"
 	"html/template"
 	"log/slog"
+
+	"github.com/trs-source/docapi/openapi"
 
 	"net/http"
 	"net/url"

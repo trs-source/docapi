@@ -1,12 +1,13 @@
 package docapi
 
 import (
-	"docapi/internal"
-	"docapi/openapi"
 	"log"
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/trs-source/docapi/internal"
+	"github.com/trs-source/docapi/openapi"
 )
 
 type DocApi struct {

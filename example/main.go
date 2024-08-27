@@ -1,11 +1,12 @@
 package main
 
 import (
-	"docapi"
 	"encoding/json"
 	"net/http"
 
-	"docapi/openapi"
+	"github.com/trs-source/docapi"
+
+	"github.com/trs-source/docapi/openapi"
 
 	"github.com/go-chi/chi/v5"
 )
