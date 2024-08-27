@@ -1,12 +1,19 @@
-# DocApi is a library that facilitates API documentation for the GO language. 
+package main
 
+import (
+	"docapi"
+	"encoding/json"
+	"net/http"
 
-```
+	"docapi/openapi"
+
+	"github.com/go-chi/chi/v5"
+)
+
 type Model struct {
-	ID   int64      `json:"id"`
-	Name string     `json:"name"`	
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
-
 
 func controller(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "application/json")
@@ -55,6 +62,3 @@ func main() {
 	r.HandleFunc(doc.HandlerFn())
 	http.ListenAndServe(":8080", r)
 }
-
-```
-
