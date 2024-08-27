@@ -1,4 +1,4 @@
-module docapi
+module github.com/trs-source/docapi
 
 go 1.23.0
 
