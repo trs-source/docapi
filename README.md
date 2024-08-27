@@ -3,7 +3,7 @@
 <p align="justify"> DocApi is a library that facilitates API documentation 📑 for the GO language </p>
 
 ### Install
- - go get github.com/trs-source/docapi
+ - go get -u github.com/trs-source/docapi
 
 ### Example:
 ```
