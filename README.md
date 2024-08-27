@@ -1,2 +1,2 @@
 # docapi
-DocApi é uma lib para facilitar a documentação de API (Swagger)
+DocApi é uma lib que facilita a documentação de api (swagger) para linguagem GO.
