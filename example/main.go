@@ -6,12 +6,16 @@ import (
 
 	"github.com/trs-source/docapi"
 
-	"github.com/trs-source/docapi/openapi"
-
 	"github.com/go-chi/chi/v5"
 )
 
 type Model struct {
+	ID     int64    `json:"id"`
+	Name   string   `json:"name"`
+	Model2 []Model2 `json:"model2"`
+}
+
+type Model2 struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
 }
@@ -42,8 +46,9 @@ func main() {
 			Tag("Generic").
 			Description("Method Get").
 			Summary("Summary method get").
-			ParamQuery("id", openapi.DataTypeInteger, true).
-			ResponseObjectBodyJson(http.StatusOK, http.StatusText(http.StatusOK), Model{}).
+			ParamQuery("id", docapi.DataTypeInteger, true).
+			ResponseBodyJson(http.StatusOK, http.StatusText(http.StatusOK), Model{}).
+			ResponseBodyJson(http.StatusOK, http.StatusText(http.StatusOK), []Model2{}).
 			Response(http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).
 			HandlerFn(),
 	)
@@ -54,7 +59,7 @@ func main() {
 		router.Get("/get-bearer", controller).
 			Tag("Generic").
 			Description("Method Get").
-			ResponseObjectBodyJson(http.StatusOK, http.StatusText(http.StatusOK), Model{}).
+			ResponseBodyJson(http.StatusOK, http.StatusText(http.StatusOK), Model{}).
 			Response(http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).
 			HandlerFn(),
 	)

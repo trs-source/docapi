@@ -1,4 +1,4 @@
-package openapi
+package docapi
 
 import (
 	"fmt"
@@ -12,14 +12,14 @@ type PathStructure interface {
 	Tag(string) PathStructure
 	Summary(string) PathStructure
 	Description(string) PathStructure
-	ParamURL(name string, dataType DataTypes, required bool) PathStructure
+	ParamPath(name string, dataType DataTypes, required bool) PathStructure
 	ParamQuery(name string, dataType DataTypes, required bool) PathStructure
+	ParamHeader(name string, dataType DataTypes, required bool) PathStructure
+	ParamCookie(name string, dataType DataTypes, required bool) PathStructure
 	Response(httpStatusCode int, description string) PathStructure
-	ResponseBody(contentType string, httpStatusCode int, description string, dataType DataTypes, body ...any) PathStructure
+	ResponseBody(contentType string, httpStatusCode int, description string, body ...any) PathStructure
 	ResponseTextPlain(httpStatusCode int, description string) PathStructure
-	ResponseObjectBodyJson(httpStatusCode int, description string, body ...any) PathStructure
-	ResponseArrayBodyJson(httpStatusCode int, description string, body ...any) PathStructure
-
+	ResponseBodyJson(httpStatusCode int, description string, body ...any) PathStructure
 	HandlerFn() (method, pattern string, handlerFn http.HandlerFunc)
 }
 
@@ -44,7 +44,7 @@ func NewDefaultPathStructure(key string, method, pattern string, handlerFn http.
 		p.Security = append(p.Security, PathSecurity{security.String(): []string{}})
 	}
 
-	if doc, ok := Mapping().FindDocByKey(key); ok {
+	if doc, ok := Session().FindDocByPathDocJson(key); ok {
 		doc.AddPath(method, pattern, p)
 	}
 
@@ -99,7 +99,7 @@ func (p *PathsStructure) Description(description string) PathStructure {
 	return p
 }
 
-func (p *PathsStructure) ParamURL(name string, dataType DataTypes, required bool) PathStructure {
+func (p *PathsStructure) ParamPath(name string, dataType DataTypes, required bool) PathStructure {
 	p.addParameter(ParamPath, name, dataType, required)
 	return p
 }
@@ -109,27 +109,33 @@ func (p *PathsStructure) ParamQuery(name string, dataType DataTypes, required bo
 	return p
 }
 
-func (p *PathsStructure) Response(statusCode int, description string) PathStructure {
-	return p.addResponse("", statusCode, description, DataTypeString)
+func (p *PathsStructure) ParamHeader(name string, dataType DataTypes, required bool) PathStructure {
+	p.addParameter(ParamHeader, name, dataType, required)
+	return p
 }
 
-func (p *PathsStructure) ResponseBody(contentType string, statusCode int, description string, dataType DataTypes, body ...any) PathStructure {
-	return p.addResponse(contentType, statusCode, description, dataType, body...)
+func (p *PathsStructure) ParamCookie(name string, dataType DataTypes, required bool) PathStructure {
+	p.addParameter(ParamCookie, name, dataType, required)
+	return p
+}
+
+func (p *PathsStructure) Response(statusCode int, description string) PathStructure {
+	return p.addResponse("", statusCode, description)
+}
+
+func (p *PathsStructure) ResponseBody(contentType string, statusCode int, description string, body ...any) PathStructure {
+	return p.addResponse(contentType, statusCode, description, body...)
 }
 
 func (p *PathsStructure) ResponseTextPlain(statusCode int, description string) PathStructure {
-	return p.addResponse("text/plain", statusCode, description, DataTypeString)
+	return p.addResponse("text/plain", statusCode, description)
 }
 
-func (p *PathsStructure) ResponseObjectBodyJson(statusCode int, description string, body ...any) PathStructure {
-	return p.addResponse("aplication/json", statusCode, description, DataTypeObject, body...)
+func (p *PathsStructure) ResponseBodyJson(statusCode int, description string, body ...any) PathStructure {
+	return p.addResponse("aplication/json", statusCode, description, body...)
 }
 
-func (p *PathsStructure) ResponseArrayBodyJson(statusCode int, description string, body ...any) PathStructure {
-	return p.addResponse("aplication/json", statusCode, description, DataTypeArray, body...)
-}
-
-func (p *PathsStructure) addResponse(headerContentType string, statusCode int, description string, dataType DataTypes, body ...any) PathStructure {
+func (p *PathsStructure) addResponse(headerContentType string, statusCode int, description string, body ...any) PathStructure {
 	if strings.TrimSpace(headerContentType) == "" {
 		headerContentType = "*/*"
 	}
@@ -154,13 +160,13 @@ func (p *PathsStructure) addResponse(headerContentType string, statusCode int, d
 		return p
 	}
 
-	doc, ok := Mapping().FindDocByKey(p.Key)
+	doc, ok := Session().FindDocByPathDocJson(p.Key)
 	if !ok {
 		return p
 	}
 
 	for _, model := range body {
-		modelName := doc.AddComponentesSchemasAndExamples(model, dataType)
+		modelName, dataType := doc.AddComponentesSchemasAndExamples(model)
 
 		if !ok {
 			resp.SetContent(NewContentType(dataType, headerContentType, modelName))

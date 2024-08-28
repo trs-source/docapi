@@ -1,8 +1,7 @@
 // Versão do Swagger 3.0.
 //
 // https://swagger.io/docs/specification/about/
-
-package openapi
+package docapi
 
 import (
 	"reflect"
@@ -10,18 +9,18 @@ import (
 	"time"
 )
 
-// A chave deve ser a url do swagger concatenado com doc.json.
+// A chave deve ser o path que irá acessar o doc.json.
 //
-// Exemplo: http://localhost:8080/context-path/swagger/doc.json
-type Docs map[string]*Doc
+// Ex.: /swagger/doc.json
+type Docs map[string]*DocJson
 
-type Doc struct {
+type DocJson struct {
 	Key          string        `json:"-"`
 	Version      string        `json:"openapi"`
 	Servers      []Servers     `json:"servers,omitempty"`
 	ExternalDocs *ExternalDocs `json:"externalDocs,omitempty"`
 	Info         *Info         `json:"info,omitempty"`
-	// a chave é o endpoint
+	// a chave é o path do endpoint
 	Paths      map[string]Path `json:"paths,omitempty"`
 	Components *Components     `json:"components,omitempty"`
 }
@@ -61,13 +60,13 @@ type Components struct {
 	Schemas map[string]*Schema `json:"schemas,omitempty"`
 }
 
-func (d *Doc) AddServer(url ...string) {
+func (d *DocJson) AddServer(url ...string) {
 	for _, v := range url {
 		d.Servers = append(d.Servers, Servers{v})
 	}
 }
 
-func (s *Doc) AddPath(method, pattern string, pathStructure *PathsStructure) {
+func (s *DocJson) AddPath(method, pattern string, pathStructure *PathsStructure) {
 	method = strings.ToLower(method)
 	// A raiz do path é a url e dentro contém os métodos get, post, put...
 	// Se localizar a url, então adiciona o método.
@@ -85,7 +84,7 @@ func (s *Doc) AddPath(method, pattern string, pathStructure *PathsStructure) {
 	}
 }
 
-func (d *Doc) AddComponentSecurity(ss *SecuritySchemes) {
+func (d *DocJson) AddComponentSecurity(ss *SecuritySchemes) {
 	if ss == nil {
 		return
 	}
@@ -99,27 +98,42 @@ func (d *Doc) AddComponentSecurity(ss *SecuritySchemes) {
 }
 
 // AddComponentesSchemasAndExamples responsável por preencher components/schemas e content/contentType/shema, comforme model.
-func (d *Doc) AddComponentesSchemasAndExamples(model any, dataType DataTypes) (modelName string) {
+func (d *DocJson) AddComponentesSchemasAndExamples(model any) (modelName string, dataType DataTypes) {
 	if model == nil {
 		return
 	}
 
-	_, modelType := d.GetReflectTypeAndValue(model)
+	modelValue, modelType := d.GetReflectTypeAndValue(model)
 
-	value := d.parseComponentsExamples(model, modelType.Name(), 0, dataType)
+	switch modelType.Kind() {
+	case reflect.Slice, reflect.Array:
+		dataType = DataTypeArray
+		modelType = modelType.Elem()
+		if modelType.Kind() == reflect.Pointer {
+			modelType = modelType.Elem()
+		}
+		modelValue = reflect.ValueOf(reflect.New(modelType).Interface()).Elem()
+
+	case reflect.Struct:
+		dataType = DataTypeObject
+	default:
+		return
+	}
+
+	value := d.parseComponentsExamples(modelValue, modelType.Name(), 0, dataType)
 	if len(d.Components.Examples) == 0 {
 		d.Components.Examples = Examples{}
 	}
 
 	d.Components.Examples[modelType.Name()] = &Example{Summary: modelType.Name(), Value: value}
-	return d.parseComponentsSchemas(model, modelType.Name(), 0)
+	modelName = d.parseComponentsSchemas(modelValue, modelType.Name(), 0)
+	return
 }
 
-func (d *Doc) parseComponentsSchemas(model any, ownerModelName string, navigation int) (modelName string) {
-	modelValue, modelType := d.GetReflectTypeAndValue(model)
+func (d *DocJson) parseComponentsSchemas(modelValue reflect.Value, ownerModelName string, navigation int) (modelName string) {
 	navigation++
 
-	modelName = modelType.Name()
+	modelName = modelValue.Type().Name()
 	if navigation > 3 && modelName == ownerModelName {
 		return
 	}
@@ -149,7 +163,7 @@ func (d *Doc) parseComponentsSchemas(model any, ownerModelName string, navigatio
 			}
 
 			sub := reflect.New(fieldType).Interface()
-			subModelName := d.parseComponentsSchemas(sub, ownerModelName, navigation)
+			subModelName := d.parseComponentsSchemas(reflect.ValueOf(sub).Elem(), ownerModelName, navigation)
 
 			properties[fieldName] = map[string]any{
 				"type": "array",
@@ -162,7 +176,7 @@ func (d *Doc) parseComponentsSchemas(model any, ownerModelName string, navigatio
 		case reflect.Struct:
 			if fieldType != reflect.TypeOf(time.Time{}) {
 				sub := reflect.New(fieldType).Interface()
-				subModelName := d.parseComponentsSchemas(sub, ownerModelName, navigation)
+				subModelName := d.parseComponentsSchemas(reflect.ValueOf(sub).Elem(), ownerModelName, navigation)
 
 				properties[fieldName] = map[string]any{
 					"$ref": "#/components/schemas/" + subModelName,
@@ -189,11 +203,9 @@ func (d *Doc) parseComponentsSchemas(model any, ownerModelName string, navigatio
 	return
 }
 
-func (d *Doc) parseComponentsExamples(model any, ownerModelName string, navigation int, dataType DataTypes) (exampleValue any) {
-	modelValue, modelType := d.GetReflectTypeAndValue(model)
+func (d *DocJson) parseComponentsExamples(modelValue reflect.Value, ownerModelName string, navigation int, dataType DataTypes) (exampleValue any) {
 	navigation++
-
-	modelName := modelType.Name()
+	modelName := modelValue.Type().Name()
 	if navigation > 3 && modelName == ownerModelName {
 		return
 	}
@@ -217,6 +229,7 @@ func (d *Doc) parseComponentsExamples(model any, ownerModelName string, navigati
 
 		switch fieldType.Kind() {
 		case reflect.Array, reflect.Slice:
+
 			fieldType = fieldType.Elem()
 
 			if fieldType.Kind() == reflect.Pointer {
@@ -224,14 +237,15 @@ func (d *Doc) parseComponentsExamples(model any, ownerModelName string, navigati
 			}
 
 			sub := reflect.New(fieldType).Interface()
-			value := d.parseComponentsExamples(sub, ownerModelName, navigation, DataTypeArray)
+			value := d.parseComponentsExamples(reflect.ValueOf(sub).Elem(), ownerModelName, navigation, DataTypeArray)
+
 			exObject[fieldName] = value
 			continue
 
 		case reflect.Struct:
 			if fieldType != reflect.TypeOf(time.Time{}) {
 				sub := reflect.New(fieldType).Interface()
-				value := d.parseComponentsExamples(sub, ownerModelName, navigation, DataTypeObject)
+				value := d.parseComponentsExamples(reflect.ValueOf(sub).Elem(), ownerModelName, navigation, DataTypeObject)
 				exObject[fieldName] = value
 				continue
 			}
@@ -243,7 +257,6 @@ func (d *Doc) parseComponentsExamples(model any, ownerModelName string, navigati
 	}
 
 	exampleValue = exObject
-
 	if dataType == DataTypeArray {
 		exampleValue = []map[string]any{exObject}
 	}
@@ -251,7 +264,7 @@ func (d *Doc) parseComponentsExamples(model any, ownerModelName string, navigati
 	return
 }
 
-func (d *Doc) GetReflectTypeAndValue(model any) (modelValue reflect.Value, modelType reflect.Type) {
+func (d *DocJson) GetReflectTypeAndValue(model any) (modelValue reflect.Value, modelType reflect.Type) {
 	modelValue = reflect.ValueOf(model)
 	modelType = modelValue.Type()
 

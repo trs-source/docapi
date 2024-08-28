@@ -1,4 +1,4 @@
-package openapi
+package docapi
 
 type Examples map[string]*Example
 

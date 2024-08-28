@@ -1,4 +1,4 @@
-package openapi
+package docapi
 
 type SecurityType string
 

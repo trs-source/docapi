@@ -1,4 +1,4 @@
-package openapi
+package docapi
 
 type Schema struct {
 	OneOf    []Ref     `json:"oneOf,omitempty"`

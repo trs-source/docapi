@@ -1,11 +1,9 @@
-package internal
+package docapi
 
 import (
 	"encoding/json"
 	"html/template"
 	"log/slog"
-
-	"github.com/trs-source/docapi/openapi"
 
 	"net/http"
 	"net/url"
@@ -30,7 +28,7 @@ type HTMLConfig struct {
 	DefaultModelsExpandDepth int
 }
 
-func Handle(endpointURL string) http.HandlerFunc {
+func HandlerFunc(endpointURL string) http.HandlerFunc {
 	config := &HTMLConfig{
 		URL:                      endpointURL,
 		DocExpansion:             "list",
@@ -62,7 +60,7 @@ func Handle(endpointURL string) http.HandlerFunc {
 			index.Execute(w, config)
 
 		case "doc.json":
-			swagger, err := json.Marshal(openapi.Mapping().Docs[r.URL.Path])
+			swagger, err := json.Marshal(Session().Docs[r.URL.Path])
 			if err != nil {
 				slog.Error("error when creating Swagger doc.json file.", "error", err.Error())
 				return

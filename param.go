@@ -1,4 +1,4 @@
-package openapi
+package docapi
 
 // https://swagger.io/docs/specification/serialization/
 type ParamIn string
