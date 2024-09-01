@@ -20,9 +20,10 @@ func (c *Content) AddExamplesRef(modelName string) {
 	c.Examples[modelName] = &Example{Ref: ref}
 }
 
-func NewContentType(dataType DataTypes, contentType, modelName string) ContentType {
-	schema := NewSchemaForResponsesContent(modelName, dataType)
-	content := &Content{Schemas: schema}
-	content.AddExamplesRef(modelName)
+func NewContent() *Content {
+	return &Content{Schemas: &Schema{}}
+}
+
+func NewContentType(contentType string, content *Content) ContentType {
 	return ContentType{contentType: content}
 }

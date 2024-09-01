@@ -9,10 +9,10 @@ import (
 )
 
 type StartDocApi struct {
-	url     string
-	pattern string
-	key     string
-	doc     *DocJson
+	url  string
+	path string
+	key  string
+	doc  *DocJson
 }
 
 // NewDocApi responsável por iniciar o processo de configuração.
@@ -40,9 +40,9 @@ func NewDocApi(swaggerURL string) *StartDocApi {
 	}
 
 	doc := &StartDocApi{
-		url:     swaggerURL,
-		pattern: parse.Path + "*",
-		key:     parse.Path + "doc.json",
+		url:  swaggerURL,
+		path: parse.Path,
+		key:  parse.Path + "doc.json",
 	}
 
 	doc.doc = Session().NewDoc(doc.key)
@@ -56,11 +56,24 @@ func (d *StartDocApi) Info(title, description, version string) *StartDocApi {
 	return d
 }
 
-func (d *StartDocApi) Contact(name, email string) *StartDocApi {
+func (d *StartDocApi) Contact(name, url, email string) *StartDocApi {
 	d.doc.Info.Contact = &Contact{
 		Name:  name,
+		URL:   url,
 		Email: email,
 	}
+	return d
+}
+
+func (d *StartDocApi) ContactOptions(opts ...OptsContact) *StartDocApi {
+	if d.doc.Info.Contact == nil {
+		d.doc.Info.Contact = &Contact{}
+	}
+
+	for _, fn := range opts {
+		fn(d.doc.Info.Contact)
+	}
+
 	return d
 }
 
@@ -86,7 +99,7 @@ func (d *StartDocApi) Servers(url ...string) *StartDocApi {
 
 // NewRouter para iniciar a configuração de endpoint.
 func (d *StartDocApi) NewRouter() *Router {
-	return newRouter(d.key, SecurityNone)
+	return newRouter(d.doc, SecurityNone)
 }
 
 // NewRouterSecurityBasic para iniciar a configuração de endpoint com autenticação basic.
@@ -95,7 +108,7 @@ func (d *StartDocApi) NewRouterSecurityBasic() *Router {
 	ss.TypeName = SecurityBasic.String()
 	ss.Schema = SecurityBasic.String()
 	d.doc.AddComponentSecurity(ss)
-	return newRouter(d.key, SecurityBasic)
+	return newRouter(d.doc, SecurityBasic)
 }
 
 // NewRouterSecurityBearer para iniciar a configuração de endpoint com autenticação bearer token.
@@ -105,7 +118,7 @@ func (d *StartDocApi) NewRouterSecurityBearer() *Router {
 	ss.Schema = SecurityBearer.String()
 	ss.Format = "JWT"
 	d.doc.AddComponentSecurity(ss)
-	return newRouter(d.key, SecurityBearer)
+	return newRouter(d.doc, SecurityBearer)
 }
 
 // NewRouterSecurityApiKeyHeader para iniciar a configuração de endpoint com autenticação api key header.
@@ -123,7 +136,7 @@ func (d *StartDocApi) newRouterSecurityApiKey(in string) *Router {
 	ss.In = in
 	ss.Name = "apiKey"
 	d.doc.AddComponentSecurity(ss)
-	return newRouter(d.key, SecurityApiKey)
+	return newRouter(d.doc, SecurityApiKey)
 }
 
 // NewRouterSecurityOAuth2Password para iniciar a configuração de endpoint com autenticação oauth2 password.
@@ -145,11 +158,19 @@ func (d *StartDocApi) newRouterSecurityOAuth2(tokenUrl, in string) *Router {
 		},
 	}
 	d.doc.AddComponentSecurity(ss)
-	return newRouter(d.key, SecurityOAuth2)
+	return newRouter(d.doc, SecurityOAuth2)
 }
 
 // HandlerFn responsável por retornar o endereço do swagger e a função do controller.
-func (d *StartDocApi) HandlerFn() (pattern string, controller http.HandlerFunc) {
+func (d *StartDocApi) HandlerFunc() (pattern string, controller http.HandlerFunc) {
 	slog.Info("DocApi", "URL", d.url)
-	return d.pattern, HandlerFunc(d.url + "doc.json")
+	return d.path + "*", HandlerFunc(d.url + "doc.json")
+}
+
+// HandlerFunc responsável por retornar o endereço do swagger e a função do controller.
+//
+// Uso no net/http
+func (d *StartDocApi) HandlerFuncNetHttp() (pattern string, controller http.HandlerFunc) {
+	slog.Info("DocApi", "URL", d.url)
+	return d.path, HandlerFunc(d.url + "doc.json")
 }

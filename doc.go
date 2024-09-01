@@ -44,6 +44,7 @@ type Info struct {
 
 type Contact struct {
 	Name  string `json:"name,omitempty"`
+	URL   string `json:"url,omitempty"`
 	Email string `json:"email,omitempty"`
 }
 
@@ -273,4 +274,24 @@ func (d *DocJson) GetReflectTypeAndValue(model any) (modelValue reflect.Value, m
 		modelType = modelType.Elem()
 	}
 	return
+}
+
+type OptsContact func(*Contact)
+
+func WithContactName(name string) OptsContact {
+	return func(c *Contact) {
+		c.Name = name
+	}
+}
+
+func WithContactURL(url string) OptsContact {
+	return func(c *Contact) {
+		c.URL = url
+	}
+}
+
+func WithContactEmail(email string) OptsContact {
+	return func(c *Contact) {
+		c.Email = email
+	}
 }

@@ -16,14 +16,18 @@ type PathStructure interface {
 	ParamQuery(name string, dataType DataTypes, required bool) PathStructure
 	ParamHeader(name string, dataType DataTypes, required bool) PathStructure
 	ParamCookie(name string, dataType DataTypes, required bool) PathStructure
+
+	RequestBodyJson(body any, opts ...OptsRequest) PathStructure
+
 	Response(httpStatusCode int, description string) PathStructure
-	ResponseBody(contentType string, httpStatusCode int, description string, body ...any) PathStructure
-	ResponseTextPlain(httpStatusCode int, description string) PathStructure
-	ResponseBodyJson(httpStatusCode int, description string, body ...any) PathStructure
-	HandlerFn() (method, pattern string, handlerFn http.HandlerFunc)
+	ResponseBody(contentType string, httpStatusCode int, description string, body any) PathStructure
+
+	ResponseBodyJson(httpStatusCode int, description string, body any) PathStructure
+	MethodFunc() (method, pattern string, handlerFn http.HandlerFunc)
+	HandleFunc() (methodAndPattern string, handlerFn http.HandlerFunc)
 }
 
-func NewDefaultPathStructure(key string, method, pattern string, handlerFn http.HandlerFunc, security SecurityType) (p *PathsStructure) {
+func NewDefaultPathStructure(doc *DocJson, method, pattern string, handlerFn http.HandlerFunc, security SecurityType) (p *PathsStructure) {
 	tag := "default"
 
 	s := strings.Split(runtime.FuncForPC(reflect.ValueOf(handlerFn).Pointer()).Name(), "/")
@@ -32,28 +36,26 @@ func NewDefaultPathStructure(key string, method, pattern string, handlerFn http.
 	}
 
 	p = &PathsStructure{
-		Key:       key,
+		Doc:       doc,
 		Method:    method,
 		Pattern:   pattern,
 		H:         handlerFn,
 		Tags:      []string{tag},
-		Responses: map[string]*Response{"200": {Description: "OK"}},
+		Responses: map[string]*Response{"default": {Description: "Default"}},
 	}
 
 	if security != SecurityNone {
 		p.Security = append(p.Security, PathSecurity{security.String(): []string{}})
 	}
 
-	if doc, ok := Session().FindDocByPathDocJson(key); ok {
-		doc.AddPath(method, pattern, p)
-	}
+	doc.AddPath(method, pattern, p)
 
 	return
 }
 
 // https://swagger.io/docs/specification/paths-and-operations/
 type PathsStructure struct {
-	Key         string           `json:"-"`
+	Doc         *DocJson         `json:"-"`
 	Method      string           `json:"-"`
 	Pattern     string           `json:"-"`
 	H           http.HandlerFunc `json:"-"`
@@ -76,12 +78,6 @@ type PathParameter struct {
 	Name        string  `json:"name,omitempty"`
 	Description string  `json:"description,omitempty"`
 	ParamSchema *Schema `json:"schema,omitempty"`
-}
-
-// https://swagger.io/docs/specification/describing-request-body/
-type ResquestBody struct {
-	Required bool         `json:"required,omitempty"`
-	Content  *ContentType `json:"content,omitempty"`
 }
 
 func (p *PathsStructure) Tag(tag string) PathStructure {
@@ -119,25 +115,54 @@ func (p *PathsStructure) ParamCookie(name string, dataType DataTypes, required b
 	return p
 }
 
+func (p *PathsStructure) RequestBodyJson(body any, opts ...OptsRequest) PathStructure {
+	return p.setRequest("aplication/json", body, opts...)
+}
+
+func (p *PathsStructure) setRequest(contentType string, body any, opts ...OptsRequest) PathStructure {
+	if strings.TrimSpace(contentType) == "" {
+		contentType = "*/*"
+	}
+
+	if p.RequestBody == nil {
+		p.RequestBody = &ResquestBody{
+			Content: NewContentType(contentType, NewContent()),
+		}
+	}
+
+	content, ok := p.RequestBody.Content[contentType]
+	if !ok {
+		content = NewContent()
+		p.RequestBody.Content = NewContentType(contentType, content)
+	}
+
+	for _, fn := range opts {
+		fn(p.RequestBody)
+	}
+
+	if body == nil {
+		content.Schemas.Type = DataTypeString
+		return p
+	}
+
+	return p.parseBody(content, p.RequestBody.Description, body)
+}
+
 func (p *PathsStructure) Response(statusCode int, description string) PathStructure {
 	return p.addResponse("", statusCode, description)
 }
 
-func (p *PathsStructure) ResponseBody(contentType string, statusCode int, description string, body ...any) PathStructure {
-	return p.addResponse(contentType, statusCode, description, body...)
+func (p *PathsStructure) ResponseBody(contentType string, statusCode int, description string, body any) PathStructure {
+	return p.addResponse(contentType, statusCode, description, body)
 }
 
-func (p *PathsStructure) ResponseTextPlain(statusCode int, description string) PathStructure {
-	return p.addResponse("text/plain", statusCode, description)
+func (p *PathsStructure) ResponseBodyJson(statusCode int, description string, body any) PathStructure {
+	return p.addResponse("aplication/json", statusCode, description, body)
 }
 
-func (p *PathsStructure) ResponseBodyJson(statusCode int, description string, body ...any) PathStructure {
-	return p.addResponse("aplication/json", statusCode, description, body...)
-}
-
-func (p *PathsStructure) addResponse(headerContentType string, statusCode int, description string, body ...any) PathStructure {
-	if strings.TrimSpace(headerContentType) == "" {
-		headerContentType = "*/*"
+func (p *PathsStructure) addResponse(contentType string, statusCode int, description string, body ...any) PathStructure {
+	if strings.TrimSpace(contentType) == "" {
+		contentType = "*/*"
 	}
 
 	code := fmt.Sprint(statusCode)
@@ -156,37 +181,45 @@ func (p *PathsStructure) addResponse(headerContentType string, statusCode int, d
 		p.Responses[code] = resp
 	}
 
+	delete(p.Responses, "default")
+
 	if len(body) == 0 {
 		return p
 	}
 
-	doc, ok := Session().FindDocByPathDocJson(p.Key)
+	var content *Content
+	content, ok = resp.Content[contentType]
 	if !ok {
+		content = NewContent()
+		resp.SetContent(NewContentType(contentType, content))
+	}
+
+	return p.parseBody(content, description, body...)
+}
+
+func (p *PathsStructure) parseBody(content *Content, description string, body ...any) PathStructure {
+	if len(body) == 0 {
 		return p
 	}
 
 	for _, model := range body {
-		modelName, dataType := doc.AddComponentesSchemasAndExamples(model)
-
-		if !ok {
-			resp.SetContent(NewContentType(dataType, headerContentType, modelName))
-			ok = true
-			continue
+		modelName, dataType := p.Doc.AddComponentesSchemasAndExamples(model)
+		if modelName == "" {
+			modelName = strings.ReplaceAll(description, " ", "")
 		}
-
-		if _, okc := resp.Content[headerContentType]; okc {
-			resp.Content[headerContentType].Schemas.AddOneOfRef(modelName, dataType)
-			resp.Content[headerContentType].AddExamplesRef(modelName)
-		} else {
-			resp.SetContent(NewContentType(dataType, headerContentType, modelName))
-		}
-
+		content.Schemas.AddOneOfRef(modelName, dataType)
+		content.AddExamplesRef(modelName)
 	}
+
 	return p
 }
 
-func (p *PathsStructure) HandlerFn() (method, pattern string, handlerFn http.HandlerFunc) {
+func (p *PathsStructure) MethodFunc() (method, pattern string, handlerFn http.HandlerFunc) {
 	return p.Method, p.Pattern, p.H
+}
+
+func (p *PathsStructure) HandleFunc() (methodAndPattern string, handlerFn http.HandlerFunc) {
+	return fmt.Sprint(p.Method, p.Pattern), p.H
 }
 
 func (p *PathsStructure) addParameter(in ParamIn, name string, sType DataTypes, required bool) {

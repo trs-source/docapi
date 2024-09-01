@@ -45,7 +45,7 @@ func (s *Schema) AddOneOfRef(modelName string, dataType DataTypes) {
 
 }
 
-func NewSchemaForResponsesContent(modelName string, dataType DataTypes) (schema *Schema) {
+func NewSchema(modelName string, dataType DataTypes) (schema *Schema) {
 	schema = &Schema{}
 	schema.AddOneOfRef(modelName, dataType)
 	return
