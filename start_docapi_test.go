@@ -12,8 +12,4 @@ func TestNewDocApi(t *testing.T) {
 	if doc.path != "/swagger/" {
 		t.Errorf("expected /swagger/* but we got %s", doc.path)
 	}
-
-	if doc.key != "/swagger/doc.json" {
-		t.Errorf("expected /swagger/doc.json but we got %s", doc.key)
-	}
 }

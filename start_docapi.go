@@ -11,145 +11,129 @@ import (
 type StartDocApi struct {
 	url  string
 	path string
-	key  string
-	doc  *DocJson
+	doc  *Doc
 }
 
 // NewDocApi responsável por iniciar o processo de configuração.
 //
-// swaggerURL: URL que irá acessar a página da documentação. Ex.: http://localhost:8080/swagger/
-func NewDocApi(swaggerURL string) *StartDocApi {
-	if strings.TrimSpace(swaggerURL) == "" {
+// docURL: URL que irá acessar a página da docação. Ex.: http://localhost:8080/swagger/
+func NewDocApi(docURL string) *StartDocApi {
+	if strings.TrimSpace(docURL) == "" {
 		log.Fatal("empty url")
 	}
 
-	if !strings.Contains(swaggerURL, "http://") && !strings.Contains(swaggerURL, "https://") {
-		swaggerURL = "http://" + swaggerURL
+	if !strings.Contains(docURL, "http://") && !strings.Contains(docURL, "https://") {
+		docURL = "http://" + docURL
 	}
 
-	parse, err := url.Parse(swaggerURL)
+	parse, err := url.Parse(docURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if len(parse.Path) > 0 {
-		if string(parse.Path[len(parse.Path)-1]) != "/" {
-			parse.Path += "/"
-			swaggerURL += "/"
-		}
+	if !strings.HasSuffix(parse.Path, "/") {
+		parse.Path += "/"
+		docURL += "/"
 	}
 
-	doc := &StartDocApi{
-		url:  swaggerURL,
+	swagger := &StartDocApi{
+		url:  docURL,
 		path: parse.Path,
-		key:  parse.Path + "doc.json",
 	}
 
-	doc.doc = Session().NewDoc(doc.key)
-	return doc
+	swagger.doc = GetDocs().NewDoc(parse.Path + "doc.json")
+	return swagger
 }
 
-func (d *StartDocApi) Info(title, description, version string) *StartDocApi {
-	d.doc.Info.Title = title
-	d.doc.Info.Description = description
-	d.doc.Info.Version = version
-	return d
+func (s *StartDocApi) Info(title, description, version string) *StartDocApi {
+	s.doc.Info.Title = title
+	s.doc.Info.Description = description
+	s.doc.Info.Version = version
+	return s
 }
 
-func (d *StartDocApi) Contact(name, url, email string) *StartDocApi {
-	d.doc.Info.Contact = &Contact{
-		Name:  name,
-		URL:   url,
-		Email: email,
-	}
-	return d
-}
-
-func (d *StartDocApi) ContactOptions(opts ...OptsContact) *StartDocApi {
-	if d.doc.Info.Contact == nil {
-		d.doc.Info.Contact = &Contact{}
-	}
-
+func (s *StartDocApi) Contact(name string, opts ...OptsContact) *StartDocApi {
+	c := &Contact{Name: name}
 	for _, fn := range opts {
-		fn(d.doc.Info.Contact)
+		fn(c)
 	}
-
-	return d
+	s.doc.Info.Contact = c
+	return s
 }
 
-func (d *StartDocApi) License(name, url string) *StartDocApi {
-	d.doc.Info.License = &License{
+func (s *StartDocApi) License(name, url string) *StartDocApi {
+	s.doc.Info.License = &License{
 		Name: name, Url: url,
 	}
-	return d
+	return s
 }
 
-func (d *StartDocApi) ExternalDocs(description, url string) *StartDocApi {
-	d.doc.ExternalDocs = &ExternalDocs{
+func (s *StartDocApi) ExternalDocs(description, helpURL string) *StartDocApi {
+	s.doc.ExternalDocs = &ExternalDocs{
 		Description: description,
-		Url:         url,
+		URL:         helpURL,
 	}
-	return d
+	return s
 }
 
-func (d *StartDocApi) Servers(url ...string) *StartDocApi {
-	d.doc.AddServer(url...)
-	return d
+func (s *StartDocApi) Server(url ...string) *StartDocApi {
+	s.doc.AddServer(url...)
+	return s
 }
 
 // NewRouter para iniciar a configuração de endpoint.
-func (d *StartDocApi) NewRouter() *Router {
-	return newRouter(d.doc, SecurityNone)
+func (s *StartDocApi) NewRouter() Router {
+	return newRouter(s.doc, SecurityNone)
 }
 
 // NewRouterSecurityBasic para iniciar a configuração de endpoint com autenticação basic.
-func (d *StartDocApi) NewRouterSecurityBasic() *Router {
+func (s *StartDocApi) NewRouterSecurityBasic() Router {
 	ss := NewSecurityShemes(SecurityHttp)
 	ss.TypeName = SecurityBasic.String()
 	ss.Schema = SecurityBasic.String()
-	d.doc.AddComponentSecurity(ss)
-	return newRouter(d.doc, SecurityBasic)
+	s.doc.Components.AddSecurity(ss)
+	return newRouter(s.doc, SecurityBasic)
 }
 
 // NewRouterSecurityBearer para iniciar a configuração de endpoint com autenticação bearer token.
-func (d *StartDocApi) NewRouterSecurityBearer() *Router {
+func (s *StartDocApi) NewRouterSecurityBearer() Router {
 	ss := NewSecurityShemes(SecurityHttp)
 	ss.TypeName = SecurityBearer.String()
 	ss.Schema = SecurityBearer.String()
 	ss.Format = "JWT"
-	d.doc.AddComponentSecurity(ss)
-	return newRouter(d.doc, SecurityBearer)
+	s.doc.Components.AddSecurity(ss)
+	return newRouter(s.doc, SecurityBearer)
 }
 
 // NewRouterSecurityApiKeyHeader para iniciar a configuração de endpoint com autenticação api key header.
-func (d *StartDocApi) NewRouterSecurityApiKeyHeader() *Router {
-	return d.newRouterSecurityApiKey(ApiKeyHeader)
+func (s *StartDocApi) NewRouterSecurityApiKeyHeader() Router {
+	return s.newRouterSecurityApiKey(ApiKeyHeader)
 }
 
 // NewRouterSecurityApiKeyQuery para iniciar a configuração de endpoint com autenticação api key query.
-func (d *StartDocApi) NewRouterSecurityApiKeyQuery() *Router {
-	return d.newRouterSecurityApiKey(ApiKeyQuery)
+func (s *StartDocApi) NewRouterSecurityApiKeyQuery() Router {
+	return s.newRouterSecurityApiKey(ApiKeyQuery)
 }
 
-func (d *StartDocApi) newRouterSecurityApiKey(in string) *Router {
+func (s *StartDocApi) newRouterSecurityApiKey(in string) Router {
 	ss := NewSecurityShemes(SecurityApiKey)
 	ss.In = in
 	ss.Name = "apiKey"
-	d.doc.AddComponentSecurity(ss)
-	return newRouter(d.doc, SecurityApiKey)
+	s.doc.Components.AddSecurity(ss)
+	return newRouter(s.doc, SecurityApiKey)
 }
 
-// NewRouterSecurityOAuth2Password para iniciar a configuração de endpoint com autenticação oauth2 password.
-func (d *StartDocApi) NewRouterSecurityOAuth2Password(tokenUrl string) *Router {
-	return d.newRouterSecurityOAuth2(tokenUrl, OAuth2Password)
+// NewRouterSecurityOAuth2Password para iniciar a configuração de endpoint com autenticação oauth2 passwors.
+func (s *StartDocApi) NewRouterSecurityOAuth2Password(tokenUrl string) Router {
+	return s.newRouterSecurityOAuth2(tokenUrl, OAuth2Password)
 }
 
 // NewRouterSecurityOAuth2Password para iniciar a configuração de endpoint com autenticação oauth2 client.
-func (d *StartDocApi) NewRouterSecurityOAuth2Client(tokenUrl string) *Router {
-	return d.newRouterSecurityOAuth2(tokenUrl, OAuth2ClientCredentials)
+func (s *StartDocApi) NewRouterSecurityOAuth2Client(tokenUrl string) Router {
+	return s.newRouterSecurityOAuth2(tokenUrl, OAuth2ClientCredentials)
 }
 
-func (d *StartDocApi) newRouterSecurityOAuth2(tokenUrl, in string) *Router {
+func (s *StartDocApi) newRouterSecurityOAuth2(tokenUrl, in string) Router {
 	ss := NewSecurityShemes(SecurityOAuth2)
 	ss.Flows = &SecurityFlows{
 		in: &SecurityClient{
@@ -157,20 +141,20 @@ func (d *StartDocApi) newRouterSecurityOAuth2(tokenUrl, in string) *Router {
 			Scopes:   &SecurityScope{},
 		},
 	}
-	d.doc.AddComponentSecurity(ss)
-	return newRouter(d.doc, SecurityOAuth2)
+	s.doc.Components.AddSecurity(ss)
+	return newRouter(s.doc, SecurityOAuth2)
 }
 
 // HandlerFn responsável por retornar o endereço do swagger e a função do controller.
-func (d *StartDocApi) HandlerFunc() (pattern string, controller http.HandlerFunc) {
-	slog.Info("DocApi", "URL", d.url)
-	return d.path + "*", HandlerFunc(d.url + "doc.json")
+func (s *StartDocApi) HandlerFunc() (pattern string, controller http.HandlerFunc) {
+	slog.Info("DocApi", "URL", s.url)
+	return s.path + "*", HandlerFunc(s.url + "doc.json")
 }
 
 // HandlerFunc responsável por retornar o endereço do swagger e a função do controller.
 //
 // Uso no net/http
-func (d *StartDocApi) HandlerFuncNetHttp() (pattern string, controller http.HandlerFunc) {
-	slog.Info("DocApi", "URL", d.url)
-	return d.path, HandlerFunc(d.url + "doc.json")
+func (s *StartDocApi) HandlerFuncNetHttp() (pattern string, controller http.HandlerFunc) {
+	slog.Info("DocApi", "URL", s.url)
+	return s.path, HandlerFunc(s.url + "doc.json")
 }

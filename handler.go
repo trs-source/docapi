@@ -1,7 +1,6 @@
 package docapi
 
 import (
-	"encoding/json"
 	"html/template"
 	"log/slog"
 
@@ -28,9 +27,9 @@ type HTMLConfig struct {
 	DefaultModelsExpandDepth int
 }
 
-func HandlerFunc(endpointURL string) http.HandlerFunc {
+func HandlerFunc(urlDocJson string) http.HandlerFunc {
 	config := &HTMLConfig{
-		URL:                      endpointURL,
+		URL:                      urlDocJson,
 		DocExpansion:             "list",
 		DomID:                    "swagger-ui",
 		InstanceName:             "swagger",
@@ -40,7 +39,7 @@ func HandlerFunc(endpointURL string) http.HandlerFunc {
 		DefaultModelsExpandDepth: 1,
 	}
 
-	// criar o template
+	// cria o template
 	index, _ := template.New("swagger_index.html").Parse(SwaggerIndexTempl)
 	regMust := regexp.MustCompile(`^(.*/)([^?].*)?[?|.]*$`)
 
@@ -60,12 +59,7 @@ func HandlerFunc(endpointURL string) http.HandlerFunc {
 			index.Execute(w, config)
 
 		case "doc.json":
-			swagger, err := json.Marshal(Session().Docs[r.URL.Path])
-			if err != nil {
-				slog.Error("error when creating Swagger doc.json file.", "error", err.Error())
-				return
-			}
-			w.Write(swagger)
+			w.Write(GetDocs().GetJSON(r.URL.Path))
 
 		case "":
 			http.Redirect(w, r, submatch[1]+"/"+"index.html", http.StatusMovedPermanently)

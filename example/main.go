@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/trs-source/docapi"
 )
 
 type Model struct {
-	ID     int64    `json:"id" docapi:"examples:1"`
-	Name   string   `json:"name"`
+	ID     int64    `json:"id" docapi:"example:1"`
+	Name   string   `json:"name" docapi:"example:model;required:true"`
 	Model2 []Model2 `json:"model2"`
+	Type   []int8   `json:"type" docapi:"enum:1,2,3,4;example:1;required:true"`
 }
 
 type Model2 struct {
@@ -34,41 +34,47 @@ func controllerPost(w http.ResponseWriter, r *http.Request) {
 func main() {
 	doc := docapi.NewDocApi("http://localhost:8080/swagger/")
 	doc.Info("DocApi swagger documentation", "Lib docapi", "1.0").
-		Contact("Test", "https://www.example.com/support", "email@email.com.br").
+		Contact("Test", docapi.WithContactEmail("email@email.com.br"), docapi.WithContactWebSite("https://www.example.com/support")).
 		ExternalDocs("Help", "https://test.com/").
 		License("Test", "https://www.test.com.br").
-		Servers("http://localhost:8080")
+		Server("http://localhost:8080")
 
-	r := chi.NewRouter()
+	r := http.NewServeMux()
 
 	//No auth
 	router := doc.NewRouter()
-	r.MethodFunc(
+	r.HandleFunc(
 		router.Get("/get", controllerGet).
 			Tag("Generic").
 			Description("Method Get").
 			Summary("Summary method get").
-			ParamQuery("id", docapi.DataTypeInteger, true).
+			ParamQuery("id", docapi.DataTypeInteger, docapi.WithParamRequired()).
 			ResponseBodyJson(http.StatusOK, http.StatusText(http.StatusOK), Model{}).
 			ResponseBodyJson(http.StatusOK, http.StatusText(http.StatusOK), []Model2{}).
 			Response(http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).
-			MethodFunc(),
+			HandleFunc(),
 	)
+
+	//router = doc.NewRouterSecurityApiKeyHeader()
+	//router = doc.NewRouterSecurityApiKeyQuery()
+	//router = doc.NewRouterSecurityBasic()
+	//router = doc.NewRouterSecurityOAuth2Client("http://localhost:8080/auth")
+	//router = doc.NewRouterSecurityOAuth2Password("http://localhost:8080/auth")
 
 	//Auth JWT
 	router = doc.NewRouterSecurityBearer()
-	r.MethodFunc(
+	r.HandleFunc(
 		router.Post("/post", controllerPost).
 			Tag("Generic").
 			Description("Method Post").
-			RequestBodyJson(Model{}, docapi.WithDescription("Request POST"), docapi.WithRequired(true)).
+			RequestBodyJson(Model{}, docapi.WithDescription("Request POST"), docapi.WithRequired()).
 			Response(http.StatusCreated, http.StatusText(http.StatusCreated)).
 			Response(http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).
 			Response(http.StatusForbidden, http.StatusText(http.StatusForbidden)).
-			MethodFunc(),
+			HandleFunc(),
 	)
 
 	//Endpoint swagger
-	r.Get(doc.HandlerFunc())
+	r.HandleFunc(doc.HandlerFuncNetHttp())
 	http.ListenAndServe(":8080", r)
 }
