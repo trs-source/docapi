@@ -106,19 +106,22 @@ func (s *StartDocApi) NewRouterSecurityBearer() Router {
 }
 
 // NewRouterSecurityApiKeyHeader para iniciar a configuração de endpoint com autenticação api key header.
-func (s *StartDocApi) NewRouterSecurityApiKeyHeader() Router {
-	return s.newRouterSecurityApiKey(ApiKeyHeader)
+func (s *StartDocApi) NewRouterSecurityApiKeyHeader(key string) Router {
+	return s.newRouterSecurityApiKey(key, ApiKeyHeader)
 }
 
 // NewRouterSecurityApiKeyQuery para iniciar a configuração de endpoint com autenticação api key query.
-func (s *StartDocApi) NewRouterSecurityApiKeyQuery() Router {
-	return s.newRouterSecurityApiKey(ApiKeyQuery)
+func (s *StartDocApi) NewRouterSecurityApiKeyQuery(key string) Router {
+	return s.newRouterSecurityApiKey(key, ApiKeyQuery)
 }
 
-func (s *StartDocApi) newRouterSecurityApiKey(in string) Router {
+func (s *StartDocApi) newRouterSecurityApiKey(key, in string) Router {
 	ss := NewSecurityShemes(SecurityApiKey)
 	ss.In = in
-	ss.Name = "apiKey"
+	ss.Name = key
+	if key == "" {
+		ss.Name = "apiKey"
+	}
 	s.doc.Components.AddSecurity(ss)
 	return newRouter(s.doc, SecurityApiKey)
 }

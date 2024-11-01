@@ -55,14 +55,14 @@ func main() {
 			HandleFunc(),
 	)
 
-	//router = doc.NewRouterSecurityApiKeyHeader()
-	//router = doc.NewRouterSecurityApiKeyQuery()
+	router = doc.NewRouterSecurityApiKeyHeader("token")
+	//router = doc.NewRouterSecurityApiKeyQuery("token")
 	//router = doc.NewRouterSecurityBasic()
 	//router = doc.NewRouterSecurityOAuth2Client("http://localhost:8080/auth")
 	//router = doc.NewRouterSecurityOAuth2Password("http://localhost:8080/auth")
 
 	//Auth JWT
-	router = doc.NewRouterSecurityBearer()
+	//router = doc.NewRouterSecurityBearer()
 	r.HandleFunc(
 		router.Post("/post", controllerPost).
 			Tag("Generic").

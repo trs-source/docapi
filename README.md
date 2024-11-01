@@ -6,7 +6,7 @@
  - go get -u github.com/trs-source/docapi
 
 ### Example:
-```
+```go
 package main
 
 import (
